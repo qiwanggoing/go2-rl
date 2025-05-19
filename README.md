@@ -32,4 +32,72 @@ colcon build --symlink-install
 Make sure Python 3.8 is installed and available at the specified path.
 
 ## Simulation
+After successfully building this workspace, you can launch the simulation in mujoco with the following commands:
+```bash
+source install/setup.bash
+ros2 run deploy_RL_policy mujoco_simulator.py
+``` 
+Here is a screenshot of the simulation scene:
+<p align="center">
+  <img src="./resources/images/mujoco.png" alt="MuJoCo Simulation Scene" width="500"/>
+</p>
 
+## Control Logic
+The robot's behavior is controlled by a 3-state state machine, including:
+* **Laying Down**
+* **Standing Up**
+* **Executing RL Policy**
+
+### State Transition (XBox Controller)
+* **Initial State:** Robot automatically enters "Laying Down" state
+* **B Button:** Transitions from "Laying Down" → "Standing Up"
+* **A Button:** Transitions from "Standing Up" → "Laying Down"
+* **LB + RB Simultaneously:** While standing, executes RL Policy (remains in standing state)
+
+### Notes:
+* The "Executing RL Policy" state is considered a special case of the "Standing Up" state
+* Controller inputs are only processed when the robot is in the appropriate state for that transition
+
+### Launch Control Nodes
+
+Run the following commands in separate terminals to activate the control system:
+
+```bash
+# Terminal 1: XBox Controller Interface
+ros2 run joy joy_node
+
+# Terminal 2: State Machine Controller
+ros2 run deploy_RL_policy low_level_control
+
+# Terminal 3: Reinforcement Learning Policy
+ros2 run deploy_RL_policy RL_policy.py
+```
+Node Description:
+1. joy_node
+    * Interfaces with XBox controller hardware
+    * Publishes controller input to /joy topic
+2. low_level_control
+    * Implements the 3-state machine (Laying Down/Standing Up/RL Policy)
+    * Handles state transitions based on controller input
+    * Sends lowcmd to simulator or the real robot
+3. ​​RL_policy.py​​:
+    * Executes reinforcement learning policy
+    * Activated only in "Executing RL Policy" state (LB+RB pressed while standing)
+
+## Implementing Custom Policies
+
+To use your own reinforcement learning policy with the system:
+
+1. **Modify Policy Path**  
+   Edit the policy file path in `RL_policy.py` to point to your custom policy.
+
+2. **Data Sequence Considerations**  
+   - The Unitree robot uses a specific joint order that may differ from your training environment
+   - Verify your policy's output sequence matches the robot's expected input order
+
+3. **Safety Recommendations**  
+   ```diff
+   + Always test new policies in simulation first
+   - Avoid deploying untested policies directly to hardware
+
+You can refer to the [official documentation](https://support.unitree.com/home/en/developer/Basic_services) to check the correct order.

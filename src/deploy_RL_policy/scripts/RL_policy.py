@@ -133,6 +133,7 @@ def main():
 if __name__=="__main__":
     # Load config
     config_path = project_root/"src"/"deploy_RL_policy"/"configs"/"go2.yaml"
+    policy_path=project_root/"resources"/"policies"/"policy_with_45_obs.pt"
     config = Config(config_path)
     parser = argparse.ArgumentParser()
     # parser.add_argument('--simulation', type=bool, required=True, help='simulation or reality')

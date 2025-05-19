@@ -41,7 +41,8 @@
     <material name="black" rgba="0 0 0 1" />
     <material name="white" rgba="1 1 1 1" />
     <material name="gray" rgba="0.671705 0.692426 0.774270 1" />
-
+    <material name="grid_mat" texture="grid" texrepeat="10 10" texuniform="true" rgba="1 1 1 1"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1="0.8 0.8 0.8" rgb2="0.2 0.2 0.2"/>
     <mesh file="base_0.obj" />
     <mesh file="base_1.obj" />
     <mesh file="base_2.obj" />
@@ -61,7 +62,7 @@
   </asset>
 
   <worldbody>
-    <geom name="ground" type="plane" size="10 10 0.1" pos="0 0 0" quat="1 0 0 0" rgba="0.8 0.9 0.8 1" friction="1.0 1.0 0.01"/>
+    <geom name="ground" type="plane" size="10 10 0.1" pos="0 0 0" quat="1 0 0 0" material="grid_mat" friction="1.0 1.0 0.01"/>
     <body name="base_link" pos="0 0 0.42" childclass="go2" quat="0.707 0 0 0.707">
       <camera name="follow_cam" pos="-1.5 -0 1.8" euler="0 -0.870 -1.570" mode="trackcom" />
       <inertial pos="0.021112 0 -0.005366" quat="-0.000543471 0.713435 -0.00173769 0.700719"
