@@ -71,7 +71,7 @@ class dataReciever(Node):
         if self.left_button and self.right_button:
             linear_x,linear_y=self.cmd_sub.get_left_stick()
             angular_z=self.cmd_sub.get_right_stick()
-            self.cmd=0.5*np.array([linear_x,linear_y,angular_z])
+            self.cmd=0.7*np.array([linear_x,linear_y,angular_z])
             # print(self.cmd)
         self.obs[:3] = ang_vel
         self.obs[3:6] = gravity_orientation
@@ -140,6 +140,8 @@ if __name__=="__main__":
     config_path = f"/home/song/unitree_rl_gym/ros_communication/deploy_real/configs/go2.yaml"
     config = Config(config_path)
     parser = argparse.ArgumentParser()
-    parser.add_argument('--simulation', type=bool, required=True, help='simulation or reality')
+    # parser.add_argument('--simulation', type=bool, required=True, help='simulation or reality')
+    parser.add_argument('--simulation', type=str, choices=["True", "False"], default="False")
     args = parser.parse_args()
+    args.simulation = args.simulation == "True"
     main()

@@ -37,7 +37,7 @@ private:
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr target_pos_suber_;
 
     unitree_go::msg::LowCmd cmd_msg_;
-    std_msgs::msg::Float32MultiArray tau_data_;
+    std_msgs::msg::Float32MultiArray pos_data_;
     unitree_go::msg::MotorState motor[12];
     std_msgs::msg::Float32MultiArray torque_msg_;
     std_msgs::msg::Float32MultiArray rl_target_pos_;

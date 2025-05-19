@@ -77,7 +77,7 @@ void LowLevelControl::init_cmd()
         cmd_msg_.motor_cmd[i].kd = 0;
         cmd_msg_.motor_cmd[i].tau = 0;
     }
-    tau_data_ = std_msgs::msg::Float32MultiArray();
+    pos_data_ = std_msgs::msg::Float32MultiArray();
 }
 
 void LowLevelControl::state_callback(unitree_go::msg::LowState::SharedPtr msg)
@@ -160,8 +160,8 @@ void LowLevelControl::state_machine()
         }
         get_crc(cmd_msg_);
         cmd_puber_->publish(cmd_msg_);
-        tau_data_.data = vec;
-        target_pos_puber_->publish(tau_data_);
+        pos_data_.data = vec;
+        target_pos_puber_->publish(pos_data_);
     }
 }
 void LowLevelControl::run_policy()
@@ -189,8 +189,8 @@ void LowLevelControl::run_policy()
     }
     get_crc(cmd_msg_);
     cmd_puber_->publish(cmd_msg_);
-    tau_data_.data = vec;
-    target_pos_puber_->publish(tau_data_);
+    pos_data_.data = vec;
+    target_pos_puber_->publish(pos_data_);
 }
 
 void LowLevelControl::state_obs()
@@ -256,8 +256,8 @@ void LowLevelControl::state_transform(vector<double> &target_angels)
 
         get_crc(cmd_msg_);
         cmd_puber_->publish(cmd_msg_);
-        tau_data_.data = vec;
-        target_pos_puber_->publish(tau_data_);
+        pos_data_.data = vec;
+        target_pos_puber_->publish(pos_data_);
     }
 }
 
