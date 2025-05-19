@@ -31,7 +31,7 @@ private:
     static double jointLinearInterpolation(double initPos, double targetPos, double rate);
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<unitree_go::msg::LowCmd>::SharedPtr cmd_puber_;
-    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr target_torque_puber_;
+    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr target_pos_puber_;
     rclcpp::Subscription<unitree_go::msg::LowState>::SharedPtr state_suber_;
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_suber_;
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr target_pos_suber_;

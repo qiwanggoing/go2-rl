@@ -29,8 +29,11 @@ class dataReciever(Node):
         # self.kds=self.config.kds
         if args.simulation:
             self.low_state_sub=self.create_subscription(LowState,"/mujoco/lowstate",self.low_state_callback,10)
+            print("reading data from simuation")
         else:    
             self.low_state_sub=self.create_subscription(LowState,"/lowstate",self.low_state_callback,10) #500 HZ
+            print("reading data from reality")
+
 
         self.get_logger().info("Waiting for data")
         self.timer = self.create_timer(0.02, self.run)

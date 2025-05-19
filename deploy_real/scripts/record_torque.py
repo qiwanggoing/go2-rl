@@ -28,7 +28,7 @@ class DataPlotter(Node):
         plt.ion()  # 启用交互模式
         self.fig, self.ax = plt.subplots(figsize=(12, 6))
         self.lines = [self.ax.plot([], [], label=f'Motor {i}')[0] for i in range(12)]
-        self.ax.set_ylim(-50, 50)
+        self.ax.set_ylim(-3, 3)
         self.ax.set_xlabel('Time (s)')
         self.ax.set_ylabel('Torque (Nm)')
         self.ax.legend()
@@ -42,7 +42,7 @@ class DataPlotter(Node):
         #     10)
         self.subscription = self.create_subscription(
             Float32MultiArray,
-            '/torque',
+            '/pos',
             self.data_callback,
             10)
         # 定时更新图形

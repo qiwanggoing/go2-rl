@@ -28,10 +28,11 @@ class MujocoSimulator(Node):
         self.xml_path="/home/song/mujoco-3.3.0-linux-x86_64/mujoco-3.3.0/model/go2/go2.xml"
         # Initialize Mujoco
         self.init_mujoco()
-        self.target_dof_pos=None
-        self.tau=[0]*12
+        self.target_dof_pos=[0]*12
+        self.tau=[0.0]*12        
         # Load policy
         self.timer = self.create_timer(0.002, self.publish_sensor_data)
+        self.timer2=self.create_timer(0.001,self.update_tau)
         self.running=True
         self.kps=np.array([20.0]*12)
         self.kds=np.array([1.0]*12)
@@ -44,17 +45,6 @@ class MujocoSimulator(Node):
         
         self.m = mujoco.MjModel.from_xml_path(self.xml_path)
         self.d = mujoco.MjData(self.m)
-        # self.d.qpos[3:7]=[
-        #       0.9932722449302673,
-        #     0.008041736669838428,
-        #     0.0063380408100783825,
-        #     -0.11535090208053589]
-   
-        # laydown=[-0.6452068 ,0.84766394 ,-2.7774005 ,  0.674909   , 0.92326707 ,-2.8047292,
-        #         -0.7110552,   0.43561167, -2.7976365 ,  0.7677953,   0.84905136, -2.8131175]
-                
-        # for i in range(12):
-        #     self.d.qpos[7+i] =laydown[i] 
         self.m.opt.timestep = 0.005 
         self.viewer = mujoco.viewer.launch_passive(self.m, self.d)
         self.control_decimal=0
@@ -63,14 +53,22 @@ class MujocoSimulator(Node):
         for i in range(self.m.njnt):
             print(f"{i}: {self.m.joint(i).name}")
    
-    def target_pos_callback(self,msg):
-        self.recieve_data=True
-        self.target_dof_pos=msg.data[:12]
+    # def target_pos_callback(self,msg):
+    #     self.recieve_data=True
+    #     self.target_dof_pos=msg.data[:12]
         
     def target_torque_callback(self,msg):
         self.recieve_data=True
         for i in range(12):
-            self.tau[i]=msg.motor_cmd[i].tau
+            self.target_dof_pos[i]=msg.motor_cmd[i].q
+            self.kps[i]=msg.motor_cmd[i].kp
+            self.kds[i]=msg.motor_cmd[i].kd
+    def update_tau(self):
+        if not self.recieve_data:
+            return
+        for i in range(12):
+            self.tau[i]=self.pd_control(self.target_dof_pos[i],self.d.qpos[7+i],self.kps[i],self.d.qvel[6+i],self.kds[i])
+        
     def step_simulation(self):
         while self.viewer.is_running() and self.running :
             if not self.recieve_data:
@@ -78,16 +76,10 @@ class MujocoSimulator(Node):
             step_start=time.time()
             self.control_decimal+=1
             """Main simulation step (executed in another thread)"""
-            # tau = self.pd_control(
-            # self.target_dof_pos,
-            # self.d.qpos[7:19],
-            # self.kps,
-            # self.d.qvel[6:18],
-            # self.kds
-            # ).astype(np.float32)
-            # tau=tau[sequence]
-            # self.d.ctrl[:] = tau
             self.d.ctrl[:]=self.tau
+            Torque=Float32MultiArray()
+            Torque.data=self.target_dof_pos
+            self.torque_pub.publish(Torque)
             # Mujoco step
             mujoco.mj_step(self.m, self.d)  
             # Sync Mujoco viewer
@@ -117,10 +109,7 @@ class MujocoSimulator(Node):
         # pos.data=self.d.qpos[sequence_joint].astype(np.float32)
         pos.data=self.d.qpos[:19].tolist()
         self.pos_pub.publish(pos)
-        Torque=Float32MultiArray()
-        # sequence_torque=[3,4,5,0,1,2,9,10,11,7,8,9]
-        # Torque.data=self.d.sensordata[24:36][sequence_torque]
-        self.torque_pub.publish(Torque)
+  
         Force=Float32MultiArray()
         f1=self.d.sensordata[55:55+3]+[0,0,0]
         f2=self.d.sensordata[55+3:55+6]+[0,0,0]
@@ -134,6 +123,7 @@ class MujocoSimulator(Node):
         """Calculates torques from position commands"""
         torques=(target_q - q) * kp -  dq * kd
         return torques
+    
 def main(args=None):
     rclpy.init(args=args)
     node = MujocoSimulator()

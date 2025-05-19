@@ -55,18 +55,18 @@ LowLevelControl::LowLevelControl() : Node("low_level_control_node")
         state_suber_ = this->create_subscription<unitree_go::msg::LowState>(
             "/lowstate", 10, std::bind(&LowLevelControl::state_callback, this, std::placeholders::_1)); // 500HZ
     }
-    target_torque_puber_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/torque", 10);
+    target_pos_puber_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/pos", 10);
     init_cmd();
     target_pos_suber_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
         "/rl/target_pos", 10, std::bind(&LowLevelControl::target_pos_callback, this, std::placeholders::_1)); // 50 HZ
     joy_suber_ = this->create_subscription<sensor_msgs::msg::Joy>("/joy", 10, bind(&LowLevelControl::joy_callback, this, placeholders::_1));
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(2), std::bind(&LowLevelControl::state_machine, this)); // 500hz
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(5), std::bind(&LowLevelControl::state_machine, this)); // 500hz
 }
 
 void LowLevelControl::init_cmd()
 {
     kp = vector<double>(12, 50.0);
-    kd = vector<double>(12, 4);
+    kd = vector<double>(12, 1);
 
     for (int i = 0; i < 20; i++)
     {
@@ -151,17 +151,17 @@ void LowLevelControl::state_machine()
         for (int i = 0; i < 12; i++)
         {
             cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode, 0x00 is passive mode
-            cmd_msg_.motor_cmd[i].q = PosStopF;
-            cmd_msg_.motor_cmd[i].kp = 0;
-            cmd_msg_.motor_cmd[i].dq = VelStopF;
-            cmd_msg_.motor_cmd[i].kd = 0;
-            cmd_msg_.motor_cmd[i].tau = clip_val(kp[i] * (target_angles[i] - motor[i].q) + kd[i] * (0 - motor[i].dq), i);
-            vec.push_back(cmd_msg_.motor_cmd[i].tau);
+            cmd_msg_.motor_cmd[i].q = target_angles[i];
+            cmd_msg_.motor_cmd[i].kp = kp[i];
+            cmd_msg_.motor_cmd[i].dq = 0;
+            cmd_msg_.motor_cmd[i].kd = kd[i];
+            cmd_msg_.motor_cmd[i].tau = 0;
+            vec.push_back(target_angles[i]);
         }
         get_crc(cmd_msg_);
         cmd_puber_->publish(cmd_msg_);
         tau_data_.data = vec;
-        target_torque_puber_->publish(tau_data_);
+        target_pos_puber_->publish(tau_data_);
     }
 }
 void LowLevelControl::run_policy()
@@ -170,28 +170,27 @@ void LowLevelControl::run_policy()
     {
         cout << "Have not recieved data from policy yet" << endl;
         cmd_puber_->publish(cmd_msg_);
-        target_torque_puber_->publish(tau_data_);
+        // target_pos_puber_->publish();
         return;
     }
     vector<float> vec;
     for (int i = 0; i < 12; i++)
     {
         cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode, 0x00 is passive mode
-        cmd_msg_.motor_cmd[i].q = PosStopF;
-        cmd_msg_.motor_cmd[i].kp = 0;
-        cmd_msg_.motor_cmd[i].dq = VelStopF;
-        cmd_msg_.motor_cmd[i].kd = 0;
-        cmd_msg_.motor_cmd[i].tau = kp[i] * (standing_angels_[i] - motor[i].q) + kd[i] * (0 - motor[i].dq);
-        double val =20 * (rl_target_pos_.data[i] - motor[i].q) + 0.5 * (0 - motor[i].dq);
-        double clipped_val = clip_val(val, i);
-        vec.push_back(val);
-        cout << "original tau" << i << "value:" << val << endl;
-        cout << "clipped tau" << i << "value:" << clipped_val << endl;
+        cmd_msg_.motor_cmd[i].q = rl_target_pos_.data[i];
+        cmd_msg_.motor_cmd[i].kp = 20;
+        cmd_msg_.motor_cmd[i].kd = 0.5;
+        // cmd_msg_.motor_cmd[i].q = standing_angels_[i];
+        // cmd_msg_.motor_cmd[i].kp = kp[i];
+        // cmd_msg_.motor_cmd[i].kd = kd[i];
+        cmd_msg_.motor_cmd[i].dq = 0;
+        cmd_msg_.motor_cmd[i].tau = 0;
+        vec.push_back(rl_target_pos_.data[i]);
     }
     get_crc(cmd_msg_);
     cmd_puber_->publish(cmd_msg_);
     tau_data_.data = vec;
-    target_torque_puber_->publish(tau_data_);
+    target_pos_puber_->publish(tau_data_);
 }
 
 void LowLevelControl::state_obs()
@@ -247,18 +246,18 @@ void LowLevelControl::state_transform(vector<double> &target_angels)
         {
             q_des_[i] = jointLinearInterpolation(q_init_[i], target_angels[i], rate);
             cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode, 0x00 is passive mode
-            cmd_msg_.motor_cmd[i].q = PosStopF;
-            cmd_msg_.motor_cmd[i].kp = 0;
-            cmd_msg_.motor_cmd[i].dq = VelStopF;
-            cmd_msg_.motor_cmd[i].kd = 0;
-            cmd_msg_.motor_cmd[i].tau = clip_val(kp[i] * (q_des_[i] - motor[i].q) + kd[i] * (0 - motor[i].dq), i);
-            vec.push_back(cmd_msg_.motor_cmd[i].tau);
+            cmd_msg_.motor_cmd[i].q = q_des_[i];
+            cmd_msg_.motor_cmd[i].kp = kp[i];
+            cmd_msg_.motor_cmd[i].dq = 0;
+            cmd_msg_.motor_cmd[i].kd = kd[i];
+            cmd_msg_.motor_cmd[i].tau = 0;
+            vec.push_back(q_des_[i]);
         }
 
         get_crc(cmd_msg_);
         cmd_puber_->publish(cmd_msg_);
         tau_data_.data = vec;
-        target_torque_puber_->publish(tau_data_);
+        target_pos_puber_->publish(tau_data_);
     }
 }
 
