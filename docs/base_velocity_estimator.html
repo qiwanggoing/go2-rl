@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Base Velocity Estimator</title>
+  <!-- import MathJax -->
+  <script type="text/javascript"
+    async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  </script>
+</head>
+<body>
+  <h1>Base Velocity Estimator</h1>
+  <p>This is an extended Kalman filter using a measurement and a system model:</p>
+
+  <h3>Assumptions</h3>
+  <ul>
+    <li>When foot is in contact with the ground and not slipping, \( \mathbf{v}_{\text{foot}}^w = 0 \)</li>
+    <li>Known:
+      <ul>
+        <li>Joint angles \( \boldsymbol{\theta} \), velocities \( \dot{\boldsymbol{\theta}} \)</li>
+        <li>Angular velocity \( \boldsymbol{\omega}^b \) from IMU</li>
+        <li>Foot position relative to base from forward kinematics</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>Equations</h3>
+  <p>Foot velocity from rigid body motion:</p>
+  $$
+  \mathbf{v}_{\text{foot}}^w = \mathbf{v}_{\text{base}}^w + \boldsymbol{\omega}^w \times \mathbf{r}_{\text{foot}}^w + \mathbf{R}_b^w \mathbf{J}(\boldsymbol{\theta}) \dot{\boldsymbol{\theta}}
+  $$
+
+  <p>When the foot is on the ground:</p>
+  $$
+  \mathbf{v}_{\text{base}}^w = - \boldsymbol{\omega}^w \times \mathbf{r}_{\text{foot}}^w - \mathbf{R}_b^w \mathbf{J}(\boldsymbol{\theta}) \dot{\boldsymbol{\theta}}
+  $$
+
+  <p>Transform to base frame:</p>
+  $$
+  \mathbf{v}_{\text{base}}^b = \mathbf{R}_w^b \mathbf{v}_{\text{base}}^w
+  $$
+
+  <p>Final base velocity in base frame:</p>
+  $$
+  \mathbf{v}_{\text{base}}^b = - \boldsymbol{\omega}^b \times \mathbf{r}_{\text{foot}}^b - \mathbf{J}(\boldsymbol{\theta}) \dot{\boldsymbol{\theta}}
+  $$
+
+  <h3>System Model</h3>
+  <p>Updated using integrated IMU acceleration:</p>
+  $$
+  \mathbf{v}_{\text{system}} = \sigma_0^t a_t
+  $$
+</body>
+</html>
