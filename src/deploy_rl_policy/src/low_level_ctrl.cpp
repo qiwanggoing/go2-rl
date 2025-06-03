@@ -114,6 +114,9 @@ void LowLevelControl::joy_callback(sensor_msgs::msg::Joy::SharedPtr msg)
         should_stand_ = false;
         should_run_policy_ = true;
     }
+
+    if (msg->axes[2]==-1 && msg->axes[5]==-1)
+        rclcpp::shutdown();
 }
 
 void LowLevelControl::state_machine()

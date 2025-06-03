@@ -4,6 +4,7 @@ import torch
 from config import Config
 import numpy as np
 import os
+import sys
 from rclpy.node import Node
 import argparse
 from pathlib import Path
@@ -21,6 +22,7 @@ class dataReciever(Node):
         script_dir = os.path.dirname(os.path.abspath(__file__))  
         policy_path = os.path.join(script_dir, self.config.policy_path)
         self.policy = torch.jit.load(policy_path)
+        self.policy.eval()
         # Initializing process variables
         self.qj = np.zeros(config.num_actions, dtype=np.float32)
         self.dqj = np.zeros(config.num_actions, dtype=np.float32)
@@ -51,6 +53,9 @@ class dataReciever(Node):
     def run(self):
         # self.get_logger().info("running")
         # Get the current joint position and velocity
+        if (self.cmd_sub.axes and self.cmd_sub.axes[2] == -1 and self.cmd_sub.axes[5] == -1):
+            sys.exit()
+            
         for i in range(12):
             self.qj[i] = self.low_state.motor_state[i].q
             self.dqj[i] = self.low_state.motor_state[i].dq
@@ -88,8 +93,10 @@ class dataReciever(Node):
             self.cmd_sub.linear_x+=-np.sign(self.cmd_sub.linear_x)*0.02
             self.cmd_sub.linear_y+=-np.sign(self.cmd_sub.linear_y)*0.02
             self.cmd_sub.angular_z+=-np.sign(self.cmd_sub.angular_z)*0.02
+
             
         self.cmd=np.array([self.cmd_sub.linear_x,self.cmd_sub.linear_y,self.cmd_sub.angular_z])
+        print(self.cmd)
         self.cur_obs[:3] = self.cmd * self.config.cmd_scale 
         self.cur_obs[3:6] = gravity_orientation
         self.cur_obs[6:9] = ang_vel

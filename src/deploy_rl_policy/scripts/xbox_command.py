@@ -18,7 +18,7 @@ class XboxController:
         )
         self._last_msg_time =0
         self._timeout = 0.1
-        self.max_speed=0.3
+        self.max_speed=1
 
     def _joy_callback(self, msg: Joy):
         self.axes = msg.axes
