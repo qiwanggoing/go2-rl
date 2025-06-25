@@ -2,10 +2,10 @@
 This repository provides a framework for low-level control of a legged robot (Unitree Go2), using ROS 2 as the communication middleware. The MuJoCo simulator is used to validate the control policy in simulation. Once the policy performs well in MuJoCo, you can deploy it on the real robot by simply setting the ROS parameter is_simulation to false. Also a base velocity estimator using extended Karman Filter is provided to estimate the velocity of base. 
 
 ## Environment
-- **Ubuntu**: 20.04
-- **ROS 2**: Foxy
+- **Ubuntu**: 20.04/22.04
+- **ROS 2**: Foxy/Humble
 - **MuJoCo**: 3.2.3
-- **Python**: 3.8.20
+- **Python**: 3.8.20/3.10
 - **Pinocchio**: 3.4.0
 
 ## Access Robot Sensor Data via ROS 2
