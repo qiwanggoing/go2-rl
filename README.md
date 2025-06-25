@@ -12,6 +12,8 @@ This repository provides a framework for low-level control of a legged robot (Un
 Refer to the official Unitree ROS 2 repository for setup and examples:
 [unitree ros2](https://github.com/unitreerobotics/unitree_ros2)
 
+*source unitree_ros2 before building this workspace*
+
 ### Potential Build Issue
 When building the ROS 2 packages, you may encounter the following error:
 ```bash
@@ -31,11 +33,14 @@ colcon build --symlink-install
 ```
 Make sure Python 3.8 is installed and available at the specified path.
 
+
+
+
 ## Simulation
 After successfully building this workspace, you can launch the simulation in mujoco with the following commands:
 ```bash
 source install/setup.bash
-ros2 run deploy_RL_policy mujoco_simulator.py
+ros2 run deploy_rl_policy mujoco_simulator.py
 ``` 
 Here is a screenshot of the simulation scene:
 <p align="center">
@@ -67,10 +72,10 @@ Run the following commands in separate terminals to activate the control system:
 ros2 run joy joy_node
 
 # Terminal 2: State Machine Controller
-ros2 run deploy_RL_policy low_level_control --ros-args -p is_simulation:=true # true: simulation  false: real robot
+ros2 run deploy_rl_policy low_level_ctrl --ros-args -p is_simulation:=true # true: simulation  false: real robot
 
 # Terminal 3: Reinforcement Learning Policy
-ros2 run deploy_RL_policy RL_policy.py --is_simulation True  # or False
+ros2 run deploy_rl_policy RL_policy.py --is_simulation True  # or False
 ```
 Node Description:
 1. joy_node
