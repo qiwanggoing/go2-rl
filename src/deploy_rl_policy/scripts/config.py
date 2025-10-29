@@ -39,6 +39,25 @@ class Go2Config:
     #
     TORQUE_LIMITS = 23.5 
 
+    # --- SATA MODIFICATION: 增加生物力学模型参数 ---
+
+    # 来源: sata_jump/.../go2_torque.py (_compute_torques)
+    # 对应论文 Eq. 2 中的 γ (gamma)
+    #
+    GAMMA = 0.6 # 激活模型平滑因子
+
+    # 来源: sata_jump/.../go2_torque.py (_compute_torques)
+    # 对应论文 Eq. 4 中的 β (beta)
+    #
+    BETA = 0.9 # 疲劳恢复因子
+
+    # 来源: sata_jump/.../legged_robot.py (_process_dof_props)
+    # (在 go2_torque.py 中使用，但从基类读取)
+    # 对应论文 Eq. 3 中的 q_dot_limit
+    #
+    DOF_VEL_LIMITS = 30.0 # 关节速度限制 (rad/s), 保持原样
+    # --- END SATA MODIFICATION ---
+
     # --- 命令缩放因子 ---
     # 来源: legged_gym/envs/base/legged_robot.py (self.commands_scale的初始化方式)
     #

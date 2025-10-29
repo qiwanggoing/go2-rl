@@ -1,6 +1,6 @@
 # 
 policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/rough_go2/exported/policies/policy_with_45_obs.pt"
-xml_path: "/home/song/mujoco-3.3.0-linux-x86_64/mujoco-3.3.0/model/go2/go2.xml"
+xml_path: "/home/qiwang/unitree_mujoco/unitree_robots/go2/scene.xml"
 
 # Total simulation time
 simulation_duration: 1200.0
