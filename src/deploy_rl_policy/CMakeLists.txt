@@ -41,6 +41,8 @@ install(PROGRAMS
   scripts/config.py
   scripts/mujoco_simulator.py
   scripts/record_torque.py
+  scripts/torque_policy_node.py
+  scripts/torque_mujoco_sim.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

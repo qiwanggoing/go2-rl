@@ -265,7 +265,7 @@ class MujocoSimulator:
                 
                 # 6. 设置指令
                 # 对应 `play.py` 中设置固定指令: `env.commands[:, 0] = 0.5`
-                self.commands.lin_vel_x = 0.8 # 向前走
+                self.commands.lin_vel_x = 0.0 # 向前走
                 self.commands.lin_vel_y = 0.0
                 self.commands.ang_vel_yaw = 0.0
 
