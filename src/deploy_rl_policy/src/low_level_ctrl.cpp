@@ -1,5 +1,6 @@
-
 #include <deploy_real/low_level_ctrl.hpp>
+
+// --- (辅助函数保持不变) ---
 double get_diff_norm(vector<double> &vec1, vector<double> &vec2)
 {
     assert(vec1.size() == vec2.size());
@@ -19,6 +20,8 @@ double get_norm(vector<double> &vec)
         sum += pow(num, 2);
     return sqrt(sum);
 }
+
+// (这个函数 [clip_val] 没有被使用)
 float clip_val(float val, int index)
 {
     if ((index + 1) % 3 == 0)
@@ -37,6 +40,8 @@ float clip_val(float val, int index)
     }
     return val;
 }
+
+// --- 构造函数 (修改) ---
 LowLevelControl::LowLevelControl() : Node("finite_state_machine_node")
 {
     this->declare_parameter("is_simulation", true);
@@ -55,22 +60,30 @@ LowLevelControl::LowLevelControl() : Node("finite_state_machine_node")
         state_suber_ = this->create_subscription<unitree_go::msg::LowState>(
             "/lowstate", 10, std::bind(&LowLevelControl::state_callback, this, std::placeholders::_1)); // 500HZ
     }
+
+    // 这个发布者现在用于调试，将发布力矩
     target_pos_puber_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/pos", 10);
+    
     init_cmd();
-    target_pos_suber_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
-        "/rl/target_pos", 10, std::bind(&LowLevelControl::target_pos_callback, this, std::placeholders::_1)); // 50 HZ
+    
+    // --- 修改：订阅 /rl/target_torques ---
+    target_torque_suber_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
+        "/rl/target_torques", 10, std::bind(&LowLevelControl::target_torque_callback, this, std::placeholders::_1)); // 200 HZ
+    
     joy_suber_ = this->create_subscription<sensor_msgs::msg::Joy>("/joy", 10, bind(&LowLevelControl::joy_callback, this, placeholders::_1));
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(5), std::bind(&LowLevelControl::state_machine, this)); // 500hz
+    
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(5), std::bind(&LowLevelControl::state_machine, this)); // 200hz
 }
 
 void LowLevelControl::init_cmd()
 {
+    // PD 增益仅用于站立/卧倒
     kp = vector<double>(12, 50.0);
     kd = vector<double>(12, 1);
 
     for (int i = 0; i < 20; i++)
     {
-        cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode, 0x00 is passive mode
+        cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode
         cmd_msg_.motor_cmd[i].q = PosStopF;
         cmd_msg_.motor_cmd[i].kp = 0;
         cmd_msg_.motor_cmd[i].dq = VelStopF;
@@ -78,6 +91,7 @@ void LowLevelControl::init_cmd()
         cmd_msg_.motor_cmd[i].tau = 0;
     }
     pos_data_ = std_msgs::msg::Float32MultiArray();
+    rl_target_torques_.data.resize(12); // 初始化力矩数组大小
 }
 
 void LowLevelControl::state_callback(unitree_go::msg::LowState::SharedPtr msg)
@@ -88,16 +102,15 @@ void LowLevelControl::state_callback(unitree_go::msg::LowState::SharedPtr msg)
     }
 }
 
-void LowLevelControl::target_pos_callback(std_msgs::msg::Float32MultiArray::SharedPtr msg)
+// --- 新增：力矩回调函数 ---
+void LowLevelControl::target_torque_callback(std_msgs::msg::Float32MultiArray::SharedPtr msg)
 {
     recieved_data_ = true;
-    rl_target_pos_.data = msg->data;
-    if (is_standing_ and should_run_policy_)
-    run_policy();
+    rl_target_torques_.data = msg->data;
 }
+
 void LowLevelControl::joy_callback(sensor_msgs::msg::Joy::SharedPtr msg)
 {
-
     if (is_laydown_ and msg->buttons[1]) // Button B
     {
         should_stand_ = true;
@@ -121,6 +134,7 @@ void LowLevelControl::joy_callback(sensor_msgs::msg::Joy::SharedPtr msg)
         rclcpp::shutdown();
 }
 
+// --- 修改：状态机 ---
 void LowLevelControl::state_machine()
 {
     state_obs();
@@ -139,27 +153,59 @@ void LowLevelControl::state_machine()
         state_transform(laydown_angels_);
         cout << "should lay down" << endl;
     }
-    else if (is_standing_ and should_run_policy_) // from stand up state to policy state
+    // --- 新增：RL 力矩控制逻辑 ---
+    else if (is_standing_ && should_run_policy_ && recieved_data_) 
     {
-        // run_policy();
-        // cout << "should run policy" << endl;
+        // cout << "Running RL Torque Policy" << endl; // 太吵了
+        vector<float> vec; // 用于调试
+        for (int i = 0; i < 12; i++)
+        {
+            cmd_msg_.motor_cmd[i].mode = 0x01; // 力矩模式
+            
+            // --- 关键的力矩命令 ---
+            cmd_msg_.motor_cmd[i].q = PosStopF; 
+            cmd_msg_.motor_cmd[i].kp = 0;
+            cmd_msg_.motor_cmd[i].dq = VelStopF; 
+            cmd_msg_.motor_cmd[i].kd = 0;
+            cmd_msg_.motor_cmd[i].tau = rl_target_torques_.data[i];
+            // ---
+            
+            vec.push_back(rl_target_torques_.data[i]);
+        }
+        get_crc(cmd_msg_);
+        cmd_puber_->publish(cmd_msg_);
+
+        // 重用 /pos 发布者来调试发送的力矩
+        pos_data_.data = vec;
+        target_pos_puber_->publish(pos_data_);
     }
-    else
+    // --- 修改：保持/安全状态 ---
+    else // ( 保持卧倒 / 保持站立 / 或等待RL数据时保持站立 )
     {
-        cout << "should keep" << endl;
+        if (is_standing_ && should_run_policy_ && !recieved_data_)
+        {
+            cout << "Waiting for RL torque data, holding stand..." << endl;
+        }
+        else
+        {
+            cout << "should keep" << endl;
+        }
+
         vector<double> target_angles;
         if (is_standing_)
             target_angles = standing_angels_;
         else
             target_angles = laydown_angels_;
+            
         vector<float> vec;
         for (int i = 0; i < 12; i++)
         {
-            cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode, 0x00 is passive mode
+            // --- 原始的 PD 位置控制 ---
+            cmd_msg_.motor_cmd[i].mode = 0x01; 
             cmd_msg_.motor_cmd[i].q = target_angles[i];
-            cmd_msg_.motor_cmd[i].kp = kp[i];
+            cmd_msg_.motor_cmd[i].kp = kp[i]; 
             cmd_msg_.motor_cmd[i].dq = 0;
-            cmd_msg_.motor_cmd[i].kd = kd[i];
+            cmd_msg_.motor_cmd[i].kd = kd[i]; 
             cmd_msg_.motor_cmd[i].tau = 0;
             vec.push_back(target_angles[i]);
         }
@@ -169,32 +215,8 @@ void LowLevelControl::state_machine()
         target_pos_puber_->publish(pos_data_);
     }
 }
-void LowLevelControl::run_policy()
-{
-    if (!recieved_data_)
-    {
-        cout << "Have not recieved data from policy yet" << endl;
-        cmd_puber_->publish(cmd_msg_);
-        // target_pos_puber_->publish();
-        return;
-    }
-    vector<float> vec;
-    for (int i = 0; i < 12; i++)
-    {
-        cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode, 0x00 is passive mode
-        cmd_msg_.motor_cmd[i].q = rl_target_pos_.data[i];
-        cmd_msg_.motor_cmd[i].kp = 30;
-        cmd_msg_.motor_cmd[i].kd = 0.75;
-        cmd_msg_.motor_cmd[i].dq = 0;
-        cmd_msg_.motor_cmd[i].tau = 0;
-        vec.push_back(rl_target_pos_.data[i]);
-    }
-    get_crc(cmd_msg_);
-    cmd_puber_->publish(cmd_msg_);
-    pos_data_.data = vec;
-    target_pos_puber_->publish(pos_data_);
-}
 
+// --- (state_obs, state_transform, jointLinearInterpolation 保持不变) ---
 void LowLevelControl::state_obs()
 {
     vector<double> q(12, 0);
@@ -247,7 +269,7 @@ void LowLevelControl::state_transform(vector<double> &target_angels)
         for (int i = 0; i < 12; i++)
         {
             q_des_[i] = jointLinearInterpolation(q_init_[i], target_angels[i], rate);
-            cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode, 0x00 is passive mode
+            cmd_msg_.motor_cmd[i].mode = 0x01; // Set toque mode
             cmd_msg_.motor_cmd[i].q = q_des_[i];
             cmd_msg_.motor_cmd[i].kp = kp[i];
             cmd_msg_.motor_cmd[i].dq = 0;
@@ -271,10 +293,7 @@ double LowLevelControl::jointLinearInterpolation(double initPos, double targetPo
     return p;
 }
 
-// LowLevelControl::~LowLevelControl()
-// {
-// }
-
+// --- (main 函数保持不变) ---
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);                        // Initialize rclcpp
