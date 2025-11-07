@@ -59,7 +59,17 @@ private:
     vector<double> q_des_ = vector<double>(12, 0);
 
     // 站立姿态 (FL, FR, RL, RR 顺序)
-    vector<double> standing_angels_ = {0.0, 1.05, -2.4, 0.0, 1.05, -2.4, 0.0, 1.05, -2.4, 0.0, 1.05, -2.4};
+    // vector<double> standing_angels_ = {0.0, 1.05, -2.4, 0.0, 1.05, -2.4, 0.0, 1.05, -2.4, 0.0, 1.05, -2.4};
+    vector<double> standing_angels_ = {
+    // FL (hip, thigh, calf)
+    0.1, 1.45, -2.5, 
+    // FR (hip, thigh, calf)
+    -0.1, 1.45, -2.5, 
+    // RL (hip, thigh, calf)
+    0.1, 1.45, -2.5, 
+    // RR (hip, thigh, calf)
+    -0.1, 1.45, -2.5
+};
     // 卧倒姿态 (FL, FR, RL, RR 顺序)
     vector<double> laydown_angels_ = {-0.4, 1.05, -2.7, 0.4, 1.05, -2.7, -0.4, 1.05, -2.7, 0.4, 1.05, -2.7};
     

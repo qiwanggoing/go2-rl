@@ -78,8 +78,8 @@ LowLevelControl::LowLevelControl() : Node("finite_state_machine_node")
 void LowLevelControl::init_cmd()
 {
     // PD 增益仅用于站立/卧倒
-    kp = vector<double>(12, 50.0);
-    kd = vector<double>(12, 1);
+    kp = vector<double>(12, 100.0);
+    kd = vector<double>(12, 2.0);
 
     for (int i = 0; i < 20; i++)
     {

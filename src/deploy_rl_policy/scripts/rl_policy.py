@@ -40,7 +40,7 @@ class RLPolicy:
         return actions_mean.detach().numpy().flatten()
 
 # =====================================================================================
-# 2. SATA 策略 ROS 2 节点 (S26 最终版)
+# 2. SATA 策略 ROS 2 节点 
 # =====================================================================================
 class SATAPolicyNode(Node):
     def __init__(self, policy_path, is_simulation=False):
@@ -58,7 +58,8 @@ class SATAPolicyNode(Node):
         self.current_base_quat = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32) # w, x, y, z
         self.estimated_base_lin_vel = np.zeros(3, dtype=np.float32)
         self.commands = Commands()      
-        self.data_ready = False
+        self.ekf_ready = False
+        self.lowstate_ready = False
         self.is_rl_mode_active = False # (S26) 状态污染修复
         
         # 3. 订阅
@@ -94,28 +95,45 @@ class SATAPolicyNode(Node):
         self.torque_msg = Float32MultiArray()
 
         # 8. 主循环 Timer
-        self.timer = self.create_timer(self.dt, self.timer_callback)
+        # self.timer = self.create_timer(self.dt, self.timer_callback)
         self.get_logger().info(f"SATA policy node ready. Running at {1.0/self.dt} Hz.")
 
     def state_callback(self, msg: LowState):
-        """
-        处理来自 /lowstate 的数据 (FL, FR, RL, RR 顺序)
-        (S24 修正)
-        """
-        # 消息已经是 (FL, FR, RL, RR) 顺序，无需映射
+        # 1. 存储传感器数据 (保持不变)
         self.current_q = np.array([motor.q for motor in msg.motor_state[:self.num_actions]], dtype=np.float32)
         self.current_dq = np.array([motor.dq for motor in msg.motor_state[:self.num_actions]], dtype=np.float32)
-        
-        # IMU 数据 (S14 修正)
         self.current_base_ang_vel = np.array(msg.imu_state.gyroscope, dtype=np.float32)
-        self.current_base_quat = np.array(msg.imu_state.quaternion, dtype=np.float32) # w, x, y, z
-        
-        if not self.data_ready and self.estimated_base_lin_vel is not None:
-             self.get_logger().info("LowState and EKF data received. System is ready.")
-             self.data_ready = True
+        self.current_base_quat = np.array(msg.imu_state.quaternion, dtype=np.float32) 
+
+        # 2. (新的) 设置 LowState 标志
+        if not self.lowstate_ready:
+            self.get_logger().info("LowState data received.")
+            self.lowstate_ready = True
+
+        # 3. 检查 C++ 节点是否也处于 RL 模式 (保持不变)
+        # if not self.is_rl_mode_active:
+        #     return
+
+        # 4. (新的) 检查 *两个* 标志
+        if not self.lowstate_ready or not self.ekf_ready:
+            self.get_logger().warn("RL Mode active, but waiting for LowState/EKF data...", throttle_duration_sec=2.0)
+            return
+
+        # 5. (后续逻辑不变) 获取观测、计算并发布
+        observation = self.get_observation()
+        raw_action = self.policy.get_action(observation)
+        final_torques = self._compute_sata_torques(raw_action, self.current_dq) 
+        self.last_torques = final_torques.copy()
+        self.torque_msg.data = final_torques.tolist()
+        self.torque_pub.publish(self.torque_msg)
 
     def ekf_callback(self, msg: Twist):
         self.estimated_base_lin_vel = np.array([msg.linear.x, msg.linear.y, msg.linear.z], dtype=np.float32)
+
+        # (新的) 只设置 EKF 标志
+        if not self.ekf_ready:
+            self.get_logger().info("EKF data received.")
+            self.ekf_ready = True
 
     def joy_callback(self, msg: Joy):
         """
@@ -140,10 +158,10 @@ class SATAPolicyNode(Node):
             elif msg.buttons[4] and msg.buttons[5]:
                 if not self.is_rl_mode_active:
                     self.get_logger().warn("RL Mode ACTIVATED. Resetting SATA internal state.")
-                    # --- 关键：重置内部状态为 0 ---
-                    self.last_torques.fill(0.0)
-                    self.motor_fatigue.fill(0.0)
-                    self.activation_sign.fill(0.0)
+                    # # --- 关键：重置内部状态为 0 ---
+                    # self.last_torques.fill(0.0)
+                    # self.motor_fatigue.fill(0.0)
+                    # self.activation_sign.fill(0.0)
                     # ---
                 self.is_rl_mode_active = True
         
@@ -194,11 +212,18 @@ class SATAPolicyNode(Node):
         obs_dof_pos = (joint_pos - self.default_dof_pos) * Go2Config.OBS_SCALES.dof_pos
         obs_dof_vel = joint_vel * Go2Config.OBS_SCALES.dof_vel
         
-        commands_scaled = np.array([
-            self.commands.lin_vel_x * Go2Config.COMMANDS_SCALES.lin_vel_x,
-            self.commands.lin_vel_y * Go2Config.COMMANDS_SCALES.lin_vel_y,
-            self.commands.ang_vel_yaw * Go2Config.COMMANDS_SCALES.ang_vel_yaw
-        ], dtype=np.float32)
+        if self.is_rl_mode_active:
+            # (我们之前讨论过的 "修复B": 移除 1.5, 0.5 等系数)
+            cmd_x = self.commands.lin_vel_x * Go2Config.COMMANDS_SCALES.lin_vel_x
+            cmd_y = self.commands.lin_vel_y * Go2Config.COMMANDS_SCALES.lin_vel_y
+            cmd_yaw = self.commands.ang_vel_yaw * Go2Config.COMMANDS_SCALES.ang_vel_yaw
+        else:
+            # (如果 C++ 在控制, 策略的指令必须为 0)
+            cmd_x = 0.0
+            cmd_y = 0.0
+            cmd_yaw = 0.0
+
+        commands_scaled = np.array([cmd_x, cmd_y, cmd_yaw], dtype=np.float32)
 
         observation = np.concatenate([
             obs_lin_vel,        # 3
@@ -232,35 +257,35 @@ class SATAPolicyNode(Node):
         
         return torques.astype(np.float32)
 
-    def timer_callback(self):
-        """
-        SATA 策略主循环 (已添加状态重置和保护 - S26)
-        """
-        # 0. 检查 C++ 节点是否也处于 RL 模式
-        if not self.is_rl_mode_active:
-            # C++ 节点处于 PD (站立/卧倒) 模式。
-            # 我们必须停止计算，以防止“状态污染”。
-            return
+    # def timer_callback(self):
+    #     """
+    #     SATA 策略主循环 (已添加状态重置和保护 - S26)
+    #     """
+    #     # 0. 检查 C++ 节点是否也处于 RL 模式
+    #     if not self.is_rl_mode_active:
+    #         # C++ 节点处于 PD (站立/卧倒) 模式。
+    #         # 我们必须停止计算，以防止“状态污染”。
+    #         return
             
-        if not self.data_ready:
-            self.get_logger().warn("RL Mode active, but waiting for sensor data...", throttle_duration_sec=2.0)
-            return
+    #     if not self.data_ready:
+    #         self.get_logger().warn("RL Mode active, but waiting for sensor data...", throttle_duration_sec=2.0)
+    #         return
             
-        # 1. 获取观测 (此时内部状态是干净的)
-        observation = self.get_observation()
+    #     # 1. 获取观测 (此时内部状态是干净的)
+    #     observation = self.get_observation()
         
-        # 2. 策略推理 (输出 FL, FR, RL, RR 顺序)
-        raw_action = self.policy.get_action(observation)
+    #     # 2. 策略推理 (输出 FL, FR, RL, RR 顺序)
+    #     raw_action = self.policy.get_action(observation)
         
-        # 3. 计算 SATA 力矩 (使用 FL, FR, RL, RR 顺序)
-        final_torques = self._compute_sata_torques(raw_action, self.current_dq) 
+    #     # 3. 计算 SATA 力矩 (使用 FL, FR, RL, RR 顺序)
+    #     final_torques = self._compute_sata_torques(raw_action, self.current_dq) 
 
-        # 4. 存储内部状态 (使用 FL, FR, RL, RR 顺序)
-        self.last_torques = final_torques.copy()
+    #     # 4. 存储内部状态 (使用 FL, FR, RL, RR 顺序)
+    #     self.last_torques = final_torques.copy()
         
-        # 5. 发布力矩 (FL, FR, RL, RR 顺序)
-        self.torque_msg.data = final_torques.tolist()
-        self.torque_pub.publish(self.torque_msg)
+    #     # 5. 发布力矩 (FL, FR, RL, RR 顺序)
+    #     self.torque_msg.data = final_torques.tolist()
+    #     self.torque_pub.publish(self.torque_msg)
 
 # =====================================================================================
 # 3. 主函数

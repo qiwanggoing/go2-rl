@@ -203,30 +203,7 @@ class TorqueMujocoSim(Node):
         # 7. (保留) 同步 Mujoco 查看器
         self.viewer.sync() 
 
-    # def run_policy(self):
-    #     """Run policy inference and update target DOF positions"""
-    #     # Build observation vector
-    #     self.cmd=np.zeros(3)
-    #     # self.get_logger().info("run policy")
-    #     self.left_button,self.right_button=self.cmd_sub.is_pressed()
-    #     if self.left_button and self.right_button:
-    #         linear_x,linear_y=self.cmd_sub.get_left_stick()
-    #         angular_z=self.cmd_sub.get_right_stick()
-    #         self.cmd=np.array([linear_x,linear_y,angular_z])
-    #     # self.get_logger().info(f"FORCE {self.d.sensordata[55:]}")
-    #     # print(len(self.d.sensordata))
-    #     self.obs[:3] = self.d.sensordata[40:43] * self.ang_vel_scale  # Angular velocity
-    #     self.obs[3:6] = self.get_gravity_orientation(self.d.qpos[3:7])  # Gravity vector
-    #     self.obs[6:9] = self.cmd * self.cmd_scale  # Scaled command
-    #     self.obs[9:21] = (self.d.qpos[7:19] - self.default_angles) * self.dof_pos_scale  # Joint positions
-    #     self.obs[21:33] = self.d.qvel[6:18] * self.dof_vel_scale  # Joint velocities
-    #     self.obs[33:45] = self.action  # Previous actions
-    #     self.grav_acc=9.81*self.obs[3:6]
-    #     # Policy inference
-    #     obs_tensor = torch.from_numpy(self.obs).unsqueeze(0)
-    #     self.action = self.policy(obs_tensor).detach().numpy().squeeze()
-    #     self.target_dof_pos = self.action * self.action_scale + self.default_angles
-    #     print(self.target_dof_pos)
+
     def publish_sensor_data(self):
         """
         发布传感器数据到 ROS 话题。
@@ -281,60 +258,6 @@ class TorqueMujocoSim(Node):
         # 4. (保留) 发布接触力 (可选，策略不使用，但调试有用)
         #
         array=Float32MultiArray()
-        # (注意：go2.xml 中没有定义足部接触传感器)
-        # (原始的 mujoco_simulator.py 假设传感器索引 55-67 是接触力)
-        # (在 scene.xml 中,
-        # 'imu_acc' 是 43-45, 之后没有其他传感器了.
-        # 啊, 你使用的是 `go2.xml` 还是 `scene.xml`?
-        # `base_velocity_estimator/config/go2.yaml` 指向 `scene.xml`。
-        # `scene.xml` 包含 `go2.xml`。
-        # 在 `go2.xml` 中，传感器 `frame_vel` 是最后一个 (索引 52-54)。
-        # 索引 55-67 在 `go2.xml` 中并不存在。
-        
-        # (结论：原始代码中的力传感器索引 [55-67] 是无效的，
-        # 除非你使用了不同的 XML。我们将暂时注释掉这部分以避免崩溃。)
-        
-        # fl_force_list=np.array([self.d.sensordata[i] for i in range (55,58)])
-        # ... (lines 203-214)
-        # array.data=[FL_force,FR_force,RL_force,RR_force]
-        # self.contact_force_pub.publish(array)
-
-
-
-
-
-    # @staticmethod
-    # def get_gravity_orientation(quaternion):
-    #     qw = quaternion[0]
-    #     qx = quaternion[1]
-    #     qy = quaternion[2]
-    #     qz = quaternion[3]
-
-    #     gravity_orientation = np.zeros(3)
-
-    #     gravity_orientation[0] = 2 * (-qz * qx + qw * qy)
-    #     gravity_orientation[1] = -2 * (qz * qy + qw * qx)
-    #     gravity_orientation[2] = 1 - 2 * (qw * qw + qz * qz)
-
-    #     return gravity_orientation
-
-    # @staticmethod
-    # def pd_control(target_q, q, kp, dq, kd):
-    #     """Calculates torques from position commands"""
-    #     torques=(target_q - q) * kp -  dq * kd
-    #     return torques
-    
-    # @staticmethod
-    # def quat_to_rot_matrix(q):
-    #     """ 将四元数 (x, y, z, w) 转换为旋转矩阵 (3x3) """
-    #     w,x, y, z = q
-    #     R = np.array([
-    #         [1 - 2*y**2 - 2*z**2, 2*x*y - 2*z*w,     2*x*z + 2*y*w],
-    #         [2*x*y + 2*z*w,     1 - 2*x**2 - 2*z**2, 2*y*z - 2*x*w],
-    #         [2*x*z - 2*y*w,     2*y*z + 2*x*w,     1 - 2*x**2 - 2*y**2]
-    #     ])
-    #     return R
-    
 
 def main(args=None):
     rclpy.init(args=args)

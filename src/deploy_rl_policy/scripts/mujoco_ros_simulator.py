@@ -7,18 +7,13 @@ import numpy as np
 import time
 import os
 
+
 # --- ROS 2 消息 ---
 from unitree_go.msg import LowCmd, LowState, MotorState, IMUState
 from geometry_msgs.msg import Twist
 
-# --- 修复导入 (S6) ---
-try:
-    from mujoco_simulator import MujocoSimulator, Go2Config
-    from config import Commands
-except ImportError as e:
-    print(f"FATAL: Failed to import 'mujoco_simulator' or 'config'. {e}")
-    print("Ensure 'mujoco_simulator.py' and 'config.py' are in the same 'scripts' directory.")
-    exit(1)
+from rl_policy import RLPolicy
+from config import Go2Config, Commands
 
 
 class MujocoRosBridgeNode(Node):
@@ -229,4 +224,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-    
